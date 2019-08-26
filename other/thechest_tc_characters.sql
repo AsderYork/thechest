@@ -1,0 +1,2 @@
+INSERT INTO thechest.tc_characters (id, character_type, name, passive_description, active_description, level_requirement) VALUES (1, 1, 'Волшебница', 'Можешь использовать свитки как любого сопартийца', 'Преврати одного монстра в зелье', 0);
+INSERT INTO thechest.tc_characters (id, character_type, name, passive_description, active_description, level_requirement) VALUES (2, 1, 'ВолшебницаХ2', 'Можешь использовать свитки как любого сопартийца', 'Преврати двух монстров в одно зелье', 0);

@@ -1,0 +1,1 @@
+INSERT INTO thechest.tc_gamesession (id, name, started, rulebook, round, curr_player, last_action, curr_dragons) VALUES (8, 'LKNF', '2019-08-26 15:58:47', 1, 0, 0, '2019-08-26 15:58:47', 0);

@@ -1,0 +1,2 @@
+INSERT INTO thechest.tc_users (id, name, last_action_time) VALUES (1, 'a2', '2019-08-26 14:34:26');
+INSERT INTO thechest.tc_users (id, name, last_action_time) VALUES (2, 'Asder', '2019-08-26 14:35:01');

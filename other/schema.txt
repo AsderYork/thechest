@@ -1,0 +1,100 @@
+create schema thechest collate utf8mb4_0900_ai_ci;
+
+create table tc_characters
+(
+	id int auto_increment
+		primary key,
+	character_type int not null,
+	name varchar(64) charset utf8 not null,
+	passive_description varchar(2048) charset utf8 not null,
+	active_description varchar(2048) charset utf8 not null,
+	level_requirement int not null
+);
+
+create table tc_encounter
+(
+	id int auto_increment
+		primary key,
+	gamesessionplayer int not null,
+	round int not null,
+	level int not null,
+	enemy_id int not null
+);
+
+create table tc_enemies_types
+(
+	id int auto_increment
+		primary key,
+	name varchar(16) null
+);
+
+create table tc_gamesession
+(
+	id int auto_increment
+		primary key,
+	name varchar(16) not null,
+	started datetime not null,
+	rulebook int null,
+	round int not null,
+	curr_player int not null,
+	last_action datetime not null,
+	curr_dragons int not null
+);
+
+create table tc_gamesession_players
+(
+	id int auto_increment
+		primary key,
+	player_id int not null,
+	session int not null,
+	position int not null,
+	exp int not null,
+	character_type int not null,
+	last_action datetime not null,
+	active_used bit not null,
+	is_ready bit not null
+);
+
+create table tc_partymembers_types
+(
+	id int auto_increment
+		primary key,
+	name varchar(16) null
+);
+
+create table tc_player_loot
+(
+	id int auto_increment
+		primary key,
+	gamesessionplayer int not null,
+	type int null,
+	used bit not null
+);
+
+create table tc_playerparty
+(
+	id int auto_increment
+		primary key,
+	gamesessionplayer int not null,
+	round int not null,
+	partymember_type int not null,
+	is_alive bit not null
+);
+
+create table tc_rulebooks
+(
+	id int auto_increment
+		primary key,
+	name varchar(64) charset utf8 null,
+	max_rounds int not null,
+	max_players int not null
+);
+
+create table tc_users
+(
+	id int auto_increment
+		primary key,
+	name varchar(128) charset utf8 not null,
+	last_action_time datetime not null
+);
+
