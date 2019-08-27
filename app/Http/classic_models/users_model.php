@@ -21,11 +21,11 @@ class users_model {
 
     }
 
-    public function get_user_by_id($name) {
+    public function get_user_by_id($id) {
 
         return DB::table('tc_users')
             ->select('*')
-            ->where('name', $name)
+            ->where('id', $id)
             ->first();
 
     }

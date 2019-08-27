@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\classic_models\characters_model;
 use App\Http\classic_models\gamesession_model;
 use App\Http\classic_models\users_model;
 use Laravel\Lumen\Routing\Controller as BaseController;
@@ -28,7 +29,7 @@ class Controller extends BaseController
         app('db')->table('tc_gamesession')->insert([$values]);
     }
 
-    private function add_user_to_session($usrid, $sessionid)
+    private function add_user_to_session($sessionname, $usrid, $sessionid)
     {
         $is_session_exists = DB::table('tc_gamesession')
             ->select('id')
@@ -84,22 +85,87 @@ class Controller extends BaseController
         $gses_table = new gamesession_model();
 
         $usrid = $request->input('usrid');
+        $usrname = 'none';
         if(empty($usrid)) {
             $usrname = $request->input('name');
             $usrid = $usr_table->add_user($usrname);
         } else {
-            $usrname = $usr_table->get_user_by_id($usrid);
+            $usrname = $usr_table->get_user_by_id($usrid)->name;
+        }
+
+        $open_sessions = $gses_table->get_sessions_for_user($usrid);
+
+        $session_data = [];
+        if(count($open_sessions) > 0) {
+            $session_data = $open_sessions[0];
+        }
+
+        return view('index', ['name' => $usrname, 'userid' => $usrid, 'session' => json_encode($session_data)]);
+
+    }
+
+    public function set_ready(Request $request)
+    {
+        $userid = $request->input('usrid');
+        if (empty($userid)) {
+            echo json_encode(['error' => 'No userid!']);
+            return;
+        }
+        $session = $request->input('session');
+        if (empty($session)) {
+            echo json_encode(['error' => 'No $session!']);
+            return;
+        }
+        $ready = $request->input('ready');
+        if (empty($ready)) {
+            $ready = 0;
+        }
+
+        $session_table = new gamesession_model();
+        $session_table->set_user_ready($session, $userid, $ready);
+
+    }
+
+    public function lobby(Request $request) {
+
+        $userid = $request->input('usrid');
+        if(empty($userid)) {
+            echo json_encode(['error' => 'No userid!']); return;
+        }
+        $session = $request->input('session');
+        if(empty($session)) {
+            echo json_encode(['error' => 'No $session!']); return;
         }
 
 
+        $session_table = new gamesession_model();
+
+        $players_in_sess = $session_table->get_players_in_session($session);
+
+        $contains_this = false;
+        foreach ($players_in_sess as $player) {
+            if($player['player_id'] == $userid) {
+                $contains_this = true; break;
+            }
+        }
+
+        if(!$contains_this) {
+            echo json_encode(['error' => 'No this user in session!']);
+            return;
+        }
+
+        $characters_table = new characters_model();
+        $chars = $characters_table->get_characters();
+
+        foreach ($players_in_sess as $key => $val) {
+            $players_in_sess[$key]['character'] = $chars[$val['character_type']];
+        }
 
 
-        $open_sessions = $gses_table->get_sessions_for_user($usrid);
-        echo $open_sessions;
-
-        return view('index', ['name' => $usrname, 'userid' => $usrid]);
+        echo json_encode($players_in_sess);
 
     }
+
 
     public function create_session(Request $request) {
 

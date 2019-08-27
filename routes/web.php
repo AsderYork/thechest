@@ -15,11 +15,13 @@
 $router->get('user/{id}', 'Controller@show');
 
 
+$router->get('lobby', 'Controller@lobby');
 $router->get('login', 'Controller@login');
 $router->get('index', 'Controller@index');
 $router->get('connect_to', 'Controller@connect_to');
 $router->get('create_session', 'Controller@create_session');
 
+$router->get('set_ready', 'Controller@set_ready');
 
 
 $router->get('test', 'Controller@test');

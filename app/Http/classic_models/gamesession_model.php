@@ -16,10 +16,13 @@ class gamesession_model {
 
     public function get_players_in_session($session_id) {
 
-        return DB::table('tc_gamesession_players')
+        return json_decode(json_encode(DB::table('tc_gamesession_players')
             ->select('*')
+            ->leftJoin('tc_users', 'tc_users.id', 'tc_gamesession_players.player_id')
             ->where('session', $session_id)
-            ->get();
+            ->whereNotNull('tc_users.id')
+            ->get()), true);
+
 
     }
 
@@ -92,6 +95,25 @@ class gamesession_model {
             ->leftJoin('tc_gamesession_players', ['tc_gamesession_players.session' => 'tc_gamesession.id'])
             ->where('tc_gamesession_players.player_id', $userid)
             ->get();
+
+    }
+
+    public function set_user_ready($session, $userid, $ready) {
+
+        if(boolval($ready)) {
+            echo 'as true';
+            DB::table('tc_gamesession_players')
+                ->where('player_id', $userid)
+                ->where('session', $session)
+                ->update(['is_ready' => 1]);
+        } else {
+            echo 'as false';
+            DB::table('tc_gamesession_players')
+                ->where('player_id', $userid)
+                ->where('session', $session)
+                ->update(['is_ready' => 0]);
+        }
+
 
     }
 

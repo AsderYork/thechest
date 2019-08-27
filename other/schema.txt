@@ -1,4 +1,5 @@
-create schema thechest collate utf8mb4_0900_ai_ci;
+create schema thechest
+use thechest;
 
 create table tc_characters
 (
