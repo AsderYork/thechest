@@ -157,10 +157,13 @@ class Controller extends BaseController
         $characters_table = new characters_model();
         $chars = $characters_table->get_characters();
 
+        $all_ready = true;
         foreach ($players_in_sess as $key => $val) {
             $players_in_sess[$key]['character'] = $chars[$val['character_type']];
+            if(!$val['is_ready']) {
+                $all_ready = false;
+            }
         }
-
 
         echo json_encode($players_in_sess);
 
@@ -233,30 +236,6 @@ class Controller extends BaseController
 
     }
 
-
-    public function game(Request $request) {
-
-        $userid = $request->input('usrid');
-        if(empty($userid)) {
-            echo 'No userid!'; return;
-        }
-        $session = $request->input('session');
-        if(empty($session)) {
-            echo 'No $session!'; return;
-        }
-
-
-        $session_table = new gamesession_model();
-
-        if($session_table->is_user_in_session($session, $userid)) {
-            echo $session_table->is_session_ready($session);
-        } else {
-            echo 'unavaliable session';
-        }
-
-
-    }
-
     public function show(Request $request) {
 
         echo 'sqwe';
@@ -285,6 +264,66 @@ class Controller extends BaseController
 
         print_r($results);
 
+
+    }
+
+    public function perfom_action($session, $userid, $party, $enemies) {
+
+
+
+
+    }
+
+    public function game(Request $request) {
+
+        $userid = $request->input('usrid');
+        if(empty($userid)) {
+            echo 'No userid!'; return;
+        }
+        $session = $request->input('session');
+        if(empty($session)) {
+            echo 'No $session!'; return;
+        }
+
+        $party = $request->input('party');
+        $enemies = $request->input('enemies');
+        print_r(['party' => $party, 'enemies' => $enemies]);
+
+        $session_table = new gamesession_model();
+
+        if(!$session_table->is_user_in_session($session, $userid)) {
+            echo 'unavaliable session';
+        }
+
+        if(!$session_table->is_session_ready($session)) {
+            echo 'Session is not ready';
+        }
+
+        $session_players = $session_table->get_players_in_session($session);
+
+        $characters_table = new characters_model();
+
+        $chars = $characters_table->get_characters();
+        foreach ($session_players as $key => $val) {
+            foreach ($chars[$val['character_type']] as $character) {
+                if($character['level_requirement'] > $val['exp']) {
+                    break;
+                }
+                $session_players[$key]['character'] = $character;
+            }
+        }
+
+        $session_table->roll_team($session);
+        $session_table->roll_enemies($session);
+
+        return view('game', [
+            'params' => ['usrid' => $userid, 'session' => $session],
+            'players' => $session_players,
+            'curr_player' => $session_table->get_current_player($session),
+            'curr_party' => $session_table->get_current_party($session),
+            'curr_encounter' => $session_table->get_current_encounter($session),
+        ]);
+        //echo 'the game!';
 
     }
 

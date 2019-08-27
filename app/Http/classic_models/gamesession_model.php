@@ -21,6 +21,7 @@ class gamesession_model {
             ->leftJoin('tc_users', 'tc_users.id', 'tc_gamesession_players.player_id')
             ->where('session', $session_id)
             ->whereNotNull('tc_users.id')
+            ->orderBy('position')
             ->get()), true);
 
 
@@ -155,8 +156,182 @@ class gamesession_model {
                 return false;
             }
         }
-        echo 'asfw';
         return true;
     }
+
+    public function get_current_player($session) {
+
+        $players = DB::table('tc_gamesession')
+            ->select('*')
+            ->leftJoin('tc_gamesession_players', 'tc_gamesession_players.session', 'tc_gamesession.id')
+            ->where('tc_gamesession.id', $session)
+            ->orderBy('tc_gamesession_players.position')
+            ->get('position');
+
+        if(empty($players)) {
+            return false;
+        }
+
+        $require_update = false;
+        $selected_pos = 0;
+        $curr_player = null;
+        foreach ($players as $player) {
+            if($player->curr_player == $player->position) {
+                $selected_pos = $player->position;
+                $curr_player = $player;
+                break;
+            }  else if($player->curr_player < $player->position) {
+                $selected_pos = $player->position;
+                $curr_player = $player;
+                $require_update = true;
+                break;
+            }
+
+        }
+
+        if($require_update) {
+            DB::table('tc_gamesession')
+                ->where('id', $session)
+                ->update(['curr_player' => $selected_pos]);
+        }
+        $curr_player->curr_player = $selected_pos;
+        return $curr_player;
+
+    }
+
+
+    public function rekey($arr, $key = 'id') {
+
+        $result = [];
+        foreach ($arr as $item) {
+            $result[$item->$key] = (array)$item;
+        }
+        return $result;
+    }
+
+    public function get_partymember_types() {
+        $avail_types = DB::table('tc_partymembers_types')->select('*')->get();
+
+        return $this->rekey($avail_types);
+    }
+
+    public function roll_team($session) {
+
+        $session_data = (array)DB::table('tc_gamesession')
+            ->select('team_size', 'tc_gamesession_players.player_id', 'round')
+            ->leftJoin('tc_rulebooks', 'tc_rulebooks.id', 'tc_gamesession.rulebook')
+            ->leftJoin('tc_gamesession_players', [
+                'tc_gamesession_players.session' => 'tc_gamesession.id',
+                'tc_gamesession.curr_player' => 'tc_gamesession_players.position'
+            ])
+            ->where('tc_gamesession.id',$session)
+            ->first();
+
+        $curr_team_count = DB::table('tc_playerparty')
+            ->where('session', $session)
+            ->where('gamesessionplayer', $session_data['player_id'])
+            ->where('round', $session_data['round'])
+            ->count();
+
+        $partymember_types = $this->get_partymember_types();
+
+
+        for($i = $curr_team_count; $i < $session_data['team_size']; $i++) {
+            DB::table('tc_playerparty')
+                ->insert([
+                    'gamesessionplayer' => $session_data['player_id'],
+                    'round' => $session_data['round'],
+                    'partymember_type' => $partymember_types[rand(1, count($partymember_types))]['id'],
+                    'is_alive' => 1,
+                    'session' => $session
+                ]);
+        }
+
+    }
+
+    public function get_current_party($session) {
+
+        $result = DB::table('tc_gamesession')
+            ->select('tc_partymembers_types.*', 'tc_playerparty.*')
+            ->leftJoin('tc_gamesession_players', [
+            'tc_gamesession_players.session' => 'tc_gamesession.id',
+            'tc_gamesession.curr_player' => 'tc_gamesession_players.position'
+            ])
+            ->leftJoin('tc_playerparty', [
+                'tc_playerparty.session' => 'tc_gamesession.id',
+                'tc_playerparty.round' => 'tc_gamesession.round',
+                'tc_playerparty.gamesessionplayer' => 'tc_gamesession_players.player_id',
+
+            ])
+            ->leftJoin('tc_partymembers_types', 'tc_partymembers_types.id', 'tc_playerparty.partymember_type')
+            ->where('tc_gamesession.id', $session)
+            ->get();
+
+        return $this->rekey($result);
+
+    }
+
+    public function get_enemies_types() {
+        $avail_types = DB::table('tc_enemies_types')->select('*')->get();
+        return $this->rekey($avail_types);
+    }
+    public function roll_enemies($session) {
+
+        $session_data = (array)DB::table('tc_gamesession')
+            ->select('max_enemies', 'tc_gamesession_players.player_id', 'round', 'tc_gamesession_players.curr_level')
+            ->leftJoin('tc_rulebooks', 'tc_rulebooks.id', 'tc_gamesession.rulebook')
+            ->leftJoin('tc_gamesession_players', [
+                'tc_gamesession_players.session' => 'tc_gamesession.id',
+                'tc_gamesession.curr_player' => 'tc_gamesession_players.position'
+            ])
+            ->where('tc_gamesession.id',$session)
+            ->first();
+
+        $curr_enemies_count = DB::table('tc_encounter')
+            ->where('session', $session)
+            ->where('gamesessionplayer', $session_data['player_id'])
+            ->where('round', $session_data['round'])
+            ->where('level', $session_data['curr_level'])
+            ->count();
+
+        $enemies_types = $this->get_enemies_types();
+
+
+        for($i = $curr_enemies_count; $i < $session_data['curr_level']; $i++) {
+            DB::table('tc_encounter')
+                ->insert([
+                    'gamesessionplayer' => $session_data['player_id'],
+                    'round' => $session_data['round'],
+                    'level' => $session_data['curr_level'],
+                    'enemy_id' => $enemies_types[rand(1, count($enemies_types))]['id'],
+                    'is_alive' => 1,
+                    'session' => $session
+                ]);
+        }
+
+    }
+    public function get_current_encounter($session) {
+
+        $result = DB::table('tc_gamesession')
+            ->select('tc_enemies_types.*', 'tc_encounter.*')
+            ->leftJoin('tc_gamesession_players', [
+                'tc_gamesession_players.session' => 'tc_gamesession.id',
+                'tc_gamesession.curr_player' => 'tc_gamesession_players.position'
+            ])
+            ->leftJoin('tc_encounter', [
+                'tc_encounter.session' => 'tc_gamesession.id',
+                'tc_encounter.round' => 'tc_gamesession.round',
+                'tc_encounter.level' => 'tc_gamesession_players.curr_level',
+                'tc_encounter.gamesessionplayer' => 'tc_gamesession_players.player_id',
+
+            ])
+            ->leftJoin('tc_enemies_types', 'tc_enemies_types.id', 'tc_encounter.enemy_id')
+            ->where('tc_gamesession.id', $session)
+            ->get();
+
+        return $this->rekey($result);
+
+    }
+
 
 }

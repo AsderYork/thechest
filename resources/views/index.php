@@ -32,6 +32,10 @@
         <p id="currlobby_header">Участники:</p>
         <button id="ready_button" onclick="swap_ready(); return false;">Готов</button>
     </div>
+
+    <div hidden id="start-game-module">
+        <a href="#" onclick="start_game(); return false">Начать игру</a>
+    </div>
 </body>
 
 <script>
@@ -39,6 +43,10 @@
     var usrname = '<?php echo $name; ?>';
     var $session = jQuery.parseJSON('<?php echo $session; ?>');
     var curr_ready = 0;
+
+    function start_game() {
+        window.open("/game?usrid=" + usrid + "&session=" + $session.id,"_self")
+    }
 
     function refresh_ready_button() {
 
@@ -72,9 +80,8 @@
 
                 if(!jQuery.isEmptyObject(parseddata)) {
                     $('#currlobby').show();
-
-                    console.log(parseddata);
                     $('.usrstr').remove();
+
                     $.each(parseddata, function(key, element) {
 
                         if(element.id == usrid) {
@@ -82,12 +89,20 @@
                         }
 
                         $('#currlobby_header').append("<div class='usrstr'><p>" + element.name + "(" + element.character[0].name + ") " + (element.is_ready ? "ready" : "not ready") + "</p></div>");
-                        console.log(element);
+
                     });
+
+                    if(parseddata.every(x => x.is_ready)) {
+                        $('#start-game-module').show();
+                    } else {
+                        $('#start-game-module').hide();
+                    }
 
                 } else {
                     $('#currlobby').hide();
                 }
+
+                refresh_ready_button();
 
 
             }
@@ -129,7 +144,7 @@
 
         refresh_lobby();
     });
-    
+
 </script>
 
 </html>
