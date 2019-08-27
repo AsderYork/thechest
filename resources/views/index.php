@@ -7,17 +7,24 @@
 </head>
 <body>
 <h1>Добро пожаловать, <?php echo $name; ?></h1>
-<form action="\create_session" method="GET">
+<form class="hide-if-in-session" action="\create_session" method="GET">
     <input hidden name="usrid" value="<?php echo $userid; ?>">
     <input hidden name="char" value="1">
     <button type="submit">Создать новую сессию</button>
 </form>
-<form action="\connect_to">
+<form class="hide-if-in-session" action="\connect_to">
     <input hidden name="usrid" value="<?php echo $userid; ?>">
     <input hidden name="char" value="1">
     <input type="text" name="session">Код сессии<Br>
     <button type="submit">Подключиться</button>
 </form>
+<form class="show-if-in-session" hidden action="\leave">
+    <input hidden name="usrid" value="<?php echo $userid; ?>">
+    <input hidden name="char" value="1">
+    <input class="currsessionfield" hidden name="session" value="1">
+    <button type="submit">Покинуть сессию</button>
+</form>
+
 <div><h1 id="session-header"></h1></div>
 
 
@@ -108,8 +115,16 @@
 
     $( document ).ready(function() {
 
-        if($session != undefined) {
+        if(!jQuery.isEmptyObject($session)) {
+            console.log($session);
             $('#session-header').text($session.name);
+            $('.currsessionfield').val($session.id);
+            $('.hide-if-in-session').hide();
+            $('.show-if-in-session').show();
+        } else {
+            console.log('session not found');
+            $('.hide-if-in-session').show();
+            $('.show-if-in-session').hide();
         }
 
         refresh_lobby();

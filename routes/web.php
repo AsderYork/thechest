@@ -22,7 +22,10 @@ $router->get('connect_to', 'Controller@connect_to');
 $router->get('create_session', 'Controller@create_session');
 
 $router->get('set_ready', 'Controller@set_ready');
+$router->get('leave', 'Controller@leave');
 
+
+$router->get('game', 'Controller@game');
 
 $router->get('test', 'Controller@test');
 

@@ -214,7 +214,48 @@ class Controller extends BaseController
 
     }
 
+    public function leave(Request $request) {
 
+        $userid = $request->input('usrid');
+        if(empty($userid)) {
+            echo 'No userid!'; return;
+        }
+        $session = $request->input('session');
+        if(empty($session)) {
+            echo 'No $session!'; return;
+        }
+
+        $session_table = new gamesession_model();
+
+        $session_table->remove_user_from_session($session, $userid);
+
+        return redirect('/index?usrid='.$userid);
+
+    }
+
+
+    public function game(Request $request) {
+
+        $userid = $request->input('usrid');
+        if(empty($userid)) {
+            echo 'No userid!'; return;
+        }
+        $session = $request->input('session');
+        if(empty($session)) {
+            echo 'No $session!'; return;
+        }
+
+
+        $session_table = new gamesession_model();
+
+        if($session_table->is_user_in_session($session, $userid)) {
+            echo $session_table->is_session_ready($session);
+        } else {
+            echo 'unavaliable session';
+        }
+
+
+    }
 
     public function show(Request $request) {
 

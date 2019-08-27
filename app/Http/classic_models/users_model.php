@@ -21,6 +21,7 @@ class users_model {
 
     }
 
+
     public function get_user_by_id($id) {
 
         return DB::table('tc_users')

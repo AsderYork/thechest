@@ -37,7 +37,7 @@ class gamesession_model {
 
         $allready_in_session = false;
         foreach ($session_players as $session_player) {
-            if($session_player->player_id == $userid) {
+            if($session_player['player_id'] == $userid) {
                 $allready_in_session = true;
             }
         }
@@ -59,6 +59,15 @@ class gamesession_model {
             ]);
 
         return true;
+
+    }
+
+    public function remove_user_from_session($session, $userid) {
+
+        DB::table('tc_gamesession_players')
+            ->where('player_id', $userid)
+            ->where('session', $session)
+            ->delete();
 
     }
 
@@ -115,6 +124,39 @@ class gamesession_model {
         }
 
 
+    }
+
+    public function is_user_in_session($session, $userid) {
+
+        return DB::table('tc_gamesession_players')
+            ->select('*')
+            ->where('session', $session)
+            ->where('player_id', $userid)
+            ->count() > 0;
+
+
+
+
+    }
+
+    public function is_session_ready($session) {
+
+        $players = DB::table('tc_gamesession_players')
+            ->select('is_ready')
+            ->where('session', $session)
+            ->get();
+
+        if(empty($players)) {
+            return false;
+        }
+
+        foreach ($players as $val) {
+            if($val->is_ready == 0) {
+                return false;
+            }
+        }
+        echo 'asfw';
+        return true;
     }
 
 }
