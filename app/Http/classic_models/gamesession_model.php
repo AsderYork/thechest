@@ -2,6 +2,7 @@
 
 namespace App\Http\classic_models;
 use DB;
+use function App\Helpers\echo_r;
 
 class gamesession_model {
 
@@ -193,6 +194,11 @@ class gamesession_model {
             DB::table('tc_gamesession')
                 ->where('id', $session)
                 ->update(['curr_player' => $selected_pos]);
+
+            DB::table('tc_gamesession_players')
+                ->where('session', $session)
+                ->where('player_id', $curr_player->player_id)
+                ->update(['curr_level' => 1]);
         }
         $curr_player->curr_player = $selected_pos;
         return $curr_player;
@@ -217,6 +223,7 @@ class gamesession_model {
 
     public function roll_team($session) {
 
+
         $session_data = (array)DB::table('tc_gamesession')
             ->select('team_size', 'tc_gamesession_players.player_id', 'round')
             ->leftJoin('tc_rulebooks', 'tc_rulebooks.id', 'tc_gamesession.rulebook')
@@ -227,6 +234,7 @@ class gamesession_model {
             ->where('tc_gamesession.id',$session)
             ->first();
 
+
         $curr_team_count = DB::table('tc_playerparty')
             ->where('session', $session)
             ->where('gamesessionplayer', $session_data['player_id'])
@@ -234,7 +242,6 @@ class gamesession_model {
             ->count();
 
         $partymember_types = $this->get_partymember_types();
-
 
         for($i = $curr_team_count; $i < $session_data['team_size']; $i++) {
             DB::table('tc_playerparty')
@@ -277,8 +284,9 @@ class gamesession_model {
     }
     public function roll_enemies($session) {
 
+
         $session_data = (array)DB::table('tc_gamesession')
-            ->select('max_enemies', 'tc_gamesession_players.player_id', 'round', 'tc_gamesession_players.curr_level')
+            ->select('max_enemies', 'tc_gamesession_players.player_id', 'round', 'tc_gamesession_players.curr_level', 'tc_gamesession_players.id')
             ->leftJoin('tc_rulebooks', 'tc_rulebooks.id', 'tc_gamesession.rulebook')
             ->leftJoin('tc_gamesession_players', [
                 'tc_gamesession_players.session' => 'tc_gamesession.id',
@@ -296,6 +304,10 @@ class gamesession_model {
 
         $enemies_types = $this->get_enemies_types();
 
+        if($session_data['curr_level'] == 0) {
+            $session_data['curr_level'] = 1;
+            DB::table('tc_gamesession_players')->where('id', $session_data['id'])->update(['curr_level' => $session_data['curr_level']]);
+        }
 
         for($i = $curr_enemies_count; $i < $session_data['curr_level']; $i++) {
             DB::table('tc_encounter')
@@ -333,5 +345,105 @@ class gamesession_model {
 
     }
 
+    public function save_encounter_deaths($encounter)
+    {
+        foreach ($encounter as $item) {
+            DB::table('tc_encounter')
+                ->where('id', $item['id'])
+                ->update(['is_alive' => $item['is_alive']]);
 
+        }
+    }
+    public function save_party_deaths($party) {
+
+        foreach ($party as $item) {
+            DB::table('tc_playerparty')
+                ->where('id', $item['id'])
+                ->update(['is_alive' => $item['is_alive']]);
+
+        }
+    }
+
+    public function next_level($session) {
+
+        $session_data = (array)DB::table('tc_gamesession')
+            ->select([
+                'max_enemies',
+                'tc_gamesession_players.player_id',
+                'round',
+                'tc_gamesession_players.curr_level',
+                'max_level',
+                'tc_gamesession_players.id'
+            ])
+            ->leftJoin('tc_rulebooks', 'tc_rulebooks.id', 'tc_gamesession.rulebook')
+            ->leftJoin('tc_gamesession_players', [
+                'tc_gamesession_players.session' => 'tc_gamesession.id',
+                'tc_gamesession.curr_player' => 'tc_gamesession_players.position'
+            ])
+            ->where('tc_gamesession.id',$session)
+            ->first();
+
+        if($session_data['curr_level'] < $session_data['max_level']) {
+            DB::table('tc_gamesession_players')
+                ->where('id', $session_data['id'])
+                ->update(['curr_level' => $session_data['curr_level'] + 1]);
+        } else {
+            $this->end_dungeon($session);
+        }
+
+        $this->roll_enemies($session);
+
+
+    }
+    public function end_dungeon($session) {
+
+        $data = (array)DB::table('tc_gamesession')
+            ->select('tc_gamesession_players.*', 'tc_gamesession.round')
+            ->leftJoin('tc_gamesession_players', [
+                'tc_gamesession_players.session' => 'tc_gamesession.id',
+                'tc_gamesession_players.position' => 'tc_gamesession.curr_player'
+            ])
+            ->where('tc_gamesession.id', $session)
+            ->orderBy('tc_gamesession_players.position')
+            ->first();
+
+        $all_monseters_dead = DB::table('tc_encounter')
+            ->leftJoin('tc_enemies_types', 'tc_enemies_types.id', 'tc_encounter.enemy_id')
+            ->where('session', $session)
+            ->where('gamesessionplayer', $data['player_id'])
+            ->where('is_alive', 1)
+            ->Where('avoidable', 0)
+            ->Count() == 0;
+
+        $last_player_pos = DB::table('tc_gamesession')
+            ->select('position')
+            ->leftJoin('tc_gamesession_players', [
+                'tc_gamesession_players.session' => 'tc_gamesession.id',
+            ])
+            ->max('position');
+
+        $next_round = $data['round'];
+        $next_player = $data['position'] + 1;
+        if($data['position'] >= $last_player_pos) {
+            $next_round++;
+            $next_player = 0;
+        }
+        $new_exp = $data['exp'];
+        if($all_monseters_dead) {
+            $new_exp = $new_exp + $data['curr_level'];
+        }
+
+        DB::table('tc_gamesession')
+            ->where('id', $session)
+            ->update(['curr_player' => $next_player, 'round' => $next_round]);
+
+
+        DB::table('tc_gamesession_players')
+            ->where('id', $data['id'])
+            ->update([
+                'exp' => $new_exp,
+                'curr_level' => 1
+                ]);
+
+    }
 }
