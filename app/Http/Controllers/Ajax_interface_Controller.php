@@ -243,8 +243,7 @@ class Ajax_interface_controller
 
         $curr_player = $session_table->get_current_player($session);
         if($curr_player->player_id != $userid) {
-            echo 'Not your turn!';
-            return;
+            return ['err' => 'NOT_YOUR_TURN'];
         }
 
         $all_party = $session_table->get_current_party($session);
@@ -306,16 +305,18 @@ class Ajax_interface_controller
         $special = $request->input('special');
         $next_level = $request->input('next_level');
 
-        $this->perfom_action($session_id, $userid, $party, $enemies, $end_turn, $next_level, $special);
+        $result = $this->perfom_action($session_id, $userid, $party, $enemies, $end_turn, $next_level, $special);
 
         $session_table = new gamesession_model();
 
         if(!$session_table->is_user_in_session($session_id, $userid)) {
-            echo 'unavaliable session_id';
+            echo json_encode(['err' => 'UNAVALIABLE_SESSION']);
+            return;
         }
 
         if(!$session_table->is_session_ready($session_id)) {
-            echo 'Session is not ready';
+            echo json_encode(['err' => 'PLAYERS_NOT_READY']);
+            return;
         }
 
         $session_players = $session_table->get_players_in_session($session_id);
@@ -343,6 +344,7 @@ class Ajax_interface_controller
             'curr_player' => $session_table->get_current_player($session_id),
             'curr_party' => $session_table->get_current_party($session_id),
             'curr_encounter' => $session_table->get_current_encounter($session_id),
+            'player_action' => $result
         ]);
         //echo 'the game!';
     }

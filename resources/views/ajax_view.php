@@ -56,7 +56,9 @@
     </div>
     <h3>Encounter</h3>
     <div id="encounter"></div>
-
+    <p>
+        <button name="execute_action" value="1">Выполнить действие</button>
+    </p>
     <p>
         <button name="next_level" value="1">Следующий уровень</button>
     </p>
@@ -159,9 +161,23 @@
         });
 
     });
+    $( "#execute_action" ).click(function () {
+
+        $.ajax({
+            url: '/ajax/game',
+            type: 'POST',
+            data: {usrid: usrid, session_id: session_id,},
+            cache: false,
+            success: function (result) {
+                var returnedData = JSON.parse(result);
+                process_game_state(returnedData);
+            }
+        });
+
+    });
     $( "#game_form" ).submit(function ( event ) {
 
-        splitted = $('#game_form').serialize().split('&');
+        splitted = parse_form_data($('#game_form').serialize());
         console.log(splitted);
 
 
@@ -171,6 +187,24 @@
     });
 
 
+
+    function parse_form_data(data) {
+
+        console.log(data);
+
+        arrq = data
+            .split('&')
+            .map(x => x.replace('%5B%5D', '').split('='))
+            .map(x => ({p:x[0], v:x[1]}));
+
+        arrs = Array.from(new Set(arrq.map(x => x.p)));
+
+        arrs = arrs.reduce((x,y) => {x[y] = []; return x;}, {});
+        arrq.forEach(x => arrs[x.p].push(x.v));
+
+        return  arrs;
+
+    }
 
     function process_game_state(data) {
 
