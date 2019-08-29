@@ -62,20 +62,24 @@ class Controller extends BaseController
 
     }
 
-    public function test(Request $request) {
-
-        $table = new gamesession_model();
-
-        $sessionname = $request->input('sessionname');
-        print_r($table->get_session_by_name($sessionname));
-
-
-    }
-
     public function login(Request $request) {
 
         if(empty($sessionname)) {
             return view('login');
+        }
+
+    }
+
+    public function index_ajax(Request $request) {
+
+        $usrid = $request->input('usrid');
+        $name = $request->input('name');
+
+        $responce = ['error' => 'OK'];
+
+        if(empty($name) && empty($usrid)) {
+            $responce['error'] = ['User info is not provided'];
+            return $responce;
         }
 
     }

@@ -29,3 +29,13 @@ $router->get('game', 'Controller@game');
 
 $router->get('test', 'Controller@test');
 
+
+$router->get('/', 'Ajax_interface_controller@index');
+$router->post('/ajax/lobby', 'Ajax_interface_controller@lobby');
+$router->post('/ajax/login', 'Ajax_interface_controller@login');
+$router->post('/ajax/new_session', 'Ajax_interface_controller@new_session');
+$router->post('/ajax/connect_to', 'Ajax_interface_controller@connect_to');
+$router->post('/ajax/ready_table', 'Ajax_interface_controller@ready_table');
+$router->post('/ajax/set_ready', 'Ajax_interface_controller@set_ready');
+$router->post('/ajax/game', 'Ajax_interface_controller@game');
+

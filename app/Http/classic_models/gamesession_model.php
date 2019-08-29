@@ -57,7 +57,46 @@ class gamesession_model {
                 'character_type' => $character_type,
                 'last_action' => DB::raw('NOW()'),
                 'active_used' => 0,
-                'is_ready' => 0
+                'is_ready' => 0,
+                'curr_level' => 1
+            ]);
+
+        return true;
+
+    }
+
+    public function add_user_to_session_byid($session_id, $userid, $character_type) {
+
+        $session = DB::table('tc_gamesession')->where('id', $session_id)->first();
+
+        if(empty($session)) {
+            return null;
+        }
+
+        $session_players = $this->get_players_in_session($session->id);
+
+        $allready_in_session = false;
+        foreach ($session_players as $session_player) {
+            if($session_player['player_id'] == $userid) {
+                $allready_in_session = true;
+            }
+        }
+
+        if($allready_in_session) {
+            return false;
+        }
+
+        DB::table('tc_gamesession_players')
+            ->insert([
+                'player_id' => $userid,
+                'session' =>$session->id,
+                'position' => count($this->get_players_in_session($session->id)) + 1,
+                'exp' => 0,
+                'character_type' => $character_type,
+                'last_action' => DB::raw('NOW()'),
+                'active_used' => 0,
+                'is_ready' => 0,
+                'curr_level' => 1
             ]);
 
         return true;
