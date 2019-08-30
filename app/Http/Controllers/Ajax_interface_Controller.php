@@ -200,10 +200,12 @@ class Ajax_interface_controller
 
 
 
-    private function multikill_of_type($type, $encounter) {
-        foreach ($encounter as $key => $emeny) {
-            if($encounter[$key]['is_alive'] == 1) {
-                $encounter[$key]['is_alive'] = 0;
+    private function multikill_of_type($type, $thismember, $encounter) {
+
+        foreach ($encounter['encounter'] as $key => $emeny) {
+            if($encounter['encounter'][$key]['is_alive'] == 1) {
+                $encounter['encounter'][$key]['is_alive'] = 0;
+                $encounter['party'][$thismember['id']]['is_alive'] = 0;
                 if ($emeny['name'] != $type) {
                     return $encounter;
                 }
@@ -215,21 +217,26 @@ class Ajax_interface_controller
     private function resolve_partymember_battle($partymember, $encounter) {
         switch ($partymember['name']) {
             case 'MAGE':
-                return $this->multikill_of_type('SLIME', $encounter);
+                return $this->multikill_of_type('SLIME',$partymember, $encounter);
             case 'CLERIC':
-                return $this->multikill_of_type('SKELETON', $encounter);
+                return $this->multikill_of_type('SKELETON', $partymember, $encounter);
             case 'WARRIOR':
-                return $this->multikill_of_type('GOBLIN', $encounter);
+                return $this->multikill_of_type('GOBLIN', $partymember, $encounter);
             case 'THEIF':
-                return $this->multikill_of_type('CHEST', $encounter);
+                return $this->multikill_of_type('CHEST', $partymember, $encounter);
             case 'PALADIN':
-                return $this->multikill_of_type($encounter[0]['name'], $encounter);
+                return $this->multikill_of_type($encounter['encounter'][0]['name'], $partymember, $encounter);
             case 'SCROLL':
-                return $encounter;//TODO:REROLL
+                if($partymember['id'] == $encounter['party'][0]['id']) {
+                    $encounter['party'][$partymember['id']]['is_alive'] = 0;
+                    $encounter['reroll'] = 1;
+                }
+                return $encounter;
 
         }
     }
     private function can_level_end($all_encounter) {
+
         foreach ($all_encounter as $item) {
             if (!$item['avoidable'] && $item['is_alive']) {
                 return false;
@@ -237,54 +244,127 @@ class Ajax_interface_controller
         }
         return true;
     }
-    public function perfom_action($session, $userid, $party, $enemies, $end_turn, $next_level, $speical) {
+    public function next_level(Request $request) {
+
+        $post = $request->all();
+
+        $sanitize_result = $this->enshure_exists($post, ['session_id', 'usrid']);
+
+        if(!empty($sanitize_result)) {
+            return json_encode($sanitize_result);
+        }
+
 
         $session_table = new gamesession_model();
 
-        $curr_player = $session_table->get_current_player($session);
-        if($curr_player->player_id != $userid) {
+        $curr_player = $session_table->get_current_player($post['session_id']);
+        if($curr_player->player_id != $post['usrid']) {
             return ['err' => 'NOT_YOUR_TURN'];
         }
 
-        $all_party = $session_table->get_current_party($session);
-        $all_encounter = $session_table->get_current_encounter($session);
+        $all_encounter = $session_table->get_current_encounter($post['session_id']);
 
-        if(!empty($party)) {
-            foreach ($party as $key => $val) {
-                $party[$key] = $all_party[$val];
+        if($this->can_level_end($all_encounter)) {
+            $session_table->next_level($post['session_id']);
+            return json_encode(['err' => 'OK']);
+        }
+        return json_encode(['err' => 'ENCOUNTER_NOT_BEATEN']);
+
+
+    }
+
+    public function end_turn(Request $request) {
+
+
+        $post = $request->all();
+
+        $sanitize_result = $this->enshure_exists($post, ['session_id', 'usrid']);
+
+        if(!empty($sanitize_result)) {
+            return json_encode($sanitize_result);
+        }
+
+
+        $session_table = new gamesession_model();
+
+        $curr_player = $session_table->get_current_player($post['session_id']);
+        if($curr_player->player_id != $post['usrid']) {
+            return ['err' => 'NOT_YOUR_TURN'];
+        }
+
+        $session_table->end_dungeon($post['session_id']);
+        return json_encode(['err' => 'OK']);
+
+    }
+
+    private function prepare_teams_data($all_party, $all_encounter, $curr_battle) {
+
+        $filled_party = [];
+        if(isset($curr_battle['party']) && !empty($curr_battle['party'])) {
+            foreach ($curr_battle['party'] as $key => $val) {
+                $filled_party[$val] = $all_party[$val];
             }
         }
-        if(!empty($enemies)) {
-            foreach ($enemies as $key => $val) {
-                $enemies[$key] = $all_encounter[$val];
+
+        $filled_encounter = [];
+        if(isset($curr_battle['enemies']) && !empty($curr_battle['enemies'])) {
+            foreach ($curr_battle['enemies'] as $key => $val) {
+                $filled_encounter[$key] = $all_encounter[$val];
             }
         }
 
-        if($next_level && $this->can_level_end($all_encounter)) {
-            $session_table->next_level($session);
-            $session_table->roll_enemies($session);
-            return;
+        return ['party' => $filled_party, 'encounter' => $filled_encounter];
+
+    }
+    private function enshure_exists($post, $vals) {
+
+        $keys = array_keys($post);
+
+        foreach ($vals as $val) {
+            if(!in_array($val, $keys)) {
+                return ['err' => strtoupper($val) . '_NOT_PROVIDED'];
+            }
+        }
+        return null;
+    }
+    public function action(Request $request) {
+
+        $post = $request->all();
+
+        $sanitize_result = $this->enshure_exists($post, ['session_id', 'usrid']);
+
+        if(!empty($sanitize_result)) {
+            return json_encode($sanitize_result);
         }
 
-        if($end_turn) {
-            $session_table->end_dungeon($session);
-            return;
+
+        $session_table = new gamesession_model();
+
+        $curr_player = $session_table->get_current_player($post['session_id']);
+        if($curr_player->player_id != $post['usrid']) {
+            return ['err' => 'NOT_YOUR_TURN'];
         }
 
-        if($end_turn || $next_level) {
-            $session_table->roll_enemies($session);
-            return;
-        }
+        $all_party = $session_table->get_current_party($post['session_id']);
+        $all_encounter = $session_table->get_current_encounter($post['session_id']);
 
-        if(!empty($party) && !empty($enemies)) {
-            foreach ($party as $key => $member) {
-                if($party[$key]['is_alive'] == 1) {
-                    $enemies = $this->resolve_partymember_battle($member, $enemies);
-                    $party[$key]['is_alive'] = 0;
+        $selection = $this->prepare_teams_data($all_party, $all_encounter, $post['action']);
+
+        if(!empty($selection['party']) && !empty($selection['encounter'])) {
+            foreach ($selection['party'] as $key => $member) {
+                if($selection['party'][$key]['is_alive'] == 1) {
+                    $selection = $this->resolve_partymember_battle($member, $selection);
+
+                    if(isset($selection['reroll'])) {
+                        $session_table->reroll_enemies($selection['encounter']);
+                        $session_table->reroll_team($selection['party']);
+                        break;
+                    }
+
                 }
             }
-            $session_table->save_encounter_deaths($enemies);
-            $session_table->save_party_deaths($party);
+            $session_table->save_encounter_deaths($selection['encounter']);
+            $session_table->save_party_deaths($selection['party']);
         }
 
     }
@@ -298,14 +378,6 @@ class Ajax_interface_controller
         if(empty($session_id)) {
             echo 'No $session_id!'; return;
         }
-
-        $party = $request->input('party');
-        $enemies = $request->input('enemies');
-        $end_turn = $request->input('end_turn');
-        $special = $request->input('special');
-        $next_level = $request->input('next_level');
-
-        $result = $this->perfom_action($session_id, $userid, $party, $enemies, $end_turn, $next_level, $special);
 
         $session_table = new gamesession_model();
 
@@ -344,7 +416,7 @@ class Ajax_interface_controller
             'curr_player' => $session_table->get_current_player($session_id),
             'curr_party' => $session_table->get_current_party($session_id),
             'curr_encounter' => $session_table->get_current_encounter($session_id),
-            'player_action' => $result
+            'can_level_end' => $this->can_level_end($session_table->get_current_encounter($session_id))
         ]);
         //echo 'the game!';
     }

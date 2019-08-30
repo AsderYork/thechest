@@ -294,7 +294,25 @@ class gamesession_model {
         }
 
     }
+    public function reroll_team($session, $ids) {
 
+        $curr_party_count = DB::table('tc_playerparty')
+            ->where('session', $session)
+            ->whereIn('id', $ids)
+            ->count();
+        if($curr_party_count != count($ids)) {
+            return json_encode(['err' => 'WRONG_SESSION']);
+        }
+
+        $partymember_types = $this->get_partymember_types();
+
+        foreach ($ids as $id) {
+            DB::table('tc_encounter')
+                ->where('id', $id)
+                ->update(['partymember_type' => $partymember_types[rand(1, count($partymember_types))]['id']]);
+        }
+
+    }
     public function get_current_party($session) {
 
         $result = DB::table('tc_gamesession')
@@ -361,6 +379,25 @@ class gamesession_model {
         }
 
     }
+    public function reroll_enemies($session, $ids) {
+
+        $curr_enemies_count = DB::table('tc_encounter')
+            ->where('session', $session)
+            ->whereIn('id', $ids)
+            ->count();
+        if($curr_enemies_count != count($ids)) {
+            return json_encode(['err' => 'WRONG_SESSION']);
+        }
+
+        $enemies_types = $this->get_enemies_types();
+
+        foreach ($ids as $id) {
+            DB::table('tc_encounter')
+                ->where('id', $id)
+                ->update(['enemy_id' => $enemies_types[rand(1, count($enemies_types))]['id']]);
+        }
+
+    }
     public function get_current_encounter($session) {
 
         $result = DB::table('tc_gamesession')
@@ -402,6 +439,7 @@ class gamesession_model {
 
         }
     }
+
 
     public function next_level($session) {
 
@@ -446,10 +484,12 @@ class gamesession_model {
             ->orderBy('tc_gamesession_players.position')
             ->first();
 
+
         $all_monseters_dead = DB::table('tc_encounter')
             ->leftJoin('tc_enemies_types', 'tc_enemies_types.id', 'tc_encounter.enemy_id')
             ->where('session', $session)
             ->where('gamesessionplayer', $data['player_id'])
+            ->where('round', $data['round'])
             ->where('is_alive', 1)
             ->Where('avoidable', 0)
             ->Count() == 0;

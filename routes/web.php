@@ -38,4 +38,8 @@ $router->post('/ajax/connect_to', 'Ajax_interface_controller@connect_to');
 $router->post('/ajax/ready_table', 'Ajax_interface_controller@ready_table');
 $router->post('/ajax/set_ready', 'Ajax_interface_controller@set_ready');
 $router->post('/ajax/game', 'Ajax_interface_controller@game');
+$router->post('/ajax/action', 'Ajax_interface_controller@action');
+$router->post('/ajax/next_level', 'Ajax_interface_controller@next_level');
+$router->post('/ajax/end_turn', 'Ajax_interface_controller@end_turn');
+
 

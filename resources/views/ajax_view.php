@@ -57,13 +57,13 @@
     <h3>Encounter</h3>
     <div id="encounter"></div>
     <p>
-        <button name="execute_action" value="1">Выполнить действие</button>
+        <button name="execute_action" class="activeplayer-only" value="1">Выполнить действие</button>
     </p>
     <p>
-        <button name="next_level" value="1">Следующий уровень</button>
+        <button id ="next_level_btn" class="activeplayer-only" name="next_level" value="1">Следующий уровень</button>
     </p>
     <p>
-        <button name="end_turn" value="1">Завершить подземелье</button>
+        <button name="end_turn" class="activeplayer-only" id="end_turn_btn" value="1">Завершить подземелье</button>
     </p>
     </form>
 
@@ -79,6 +79,10 @@
     var curr_ready = null;
     var interval = null;
     var all_ready = false;
+    var in_game = false;
+    var selected_party = [];
+    var selected_enemy = [];
+    var is_activeplayer = false;
 
     $( "#login-form" ).submit(function( event ) {
         event.preventDefault();
@@ -149,16 +153,10 @@
     });
     $( "#start_game_button" ).click(function () {
 
-        $.ajax({
-            url: '/ajax/game',
-            type: 'POST',
-            data: {usrid: usrid, session_id: session_id,},
-            cache: false,
-            success: function (result) {
-                var returnedData = JSON.parse(result);
-                process_game_state(returnedData);
-            }
-        });
+        reload_game();
+
+        clearInterval(interval);
+        interval = setInterval(reload_game, 1000);
 
     });
     $( "#execute_action" ).click(function () {
@@ -177,32 +175,98 @@
     });
     $( "#game_form" ).submit(function ( event ) {
 
-        splitted = parse_form_data($('#game_form').serialize());
-        console.log(splitted);
-
+        $.ajax({
+            url: '/ajax/action',
+            type: 'POST',
+            data: {action:{enemies:selected_enemy, party:selected_party}, usrid:usrid, session_id:session_id},
+            cache: false,
+            success: function (result) {
+                console.log(result);
+                reload_game();
+            }
+        });
+        selected_enemy = [];
+        selected_party = [];
 
         event.preventDefault();
 
 
     });
+    $( "#next_level_btn" ).click(function ( ) {
 
+        $.ajax({
+            url: '/ajax/next_level',
+            type: 'POST',
+            data: {usrid:usrid, session_id:session_id},
+            cache: false,
+            success: function (result) {
+                reload_game();
+            }
+        });
 
+        event.preventDefault();
 
-    function parse_form_data(data) {
+    });
+    $( "#end_turn_btn" ).click(function ( ) {
 
-        console.log(data);
+        $.ajax({
+            url: '/ajax/end_turn',
+            type: 'POST',
+            data: {usrid:usrid, session_id:session_id},
+            cache: false,
+            success: function (result) {
+                reload_game();
+            }
+        });
 
-        arrq = data
-            .split('&')
-            .map(x => x.replace('%5B%5D', '').split('='))
-            .map(x => ({p:x[0], v:x[1]}));
+        event.preventDefault();
 
-        arrs = Array.from(new Set(arrq.map(x => x.p)));
+    });
 
-        arrs = arrs.reduce((x,y) => {x[y] = []; return x;}, {});
-        arrq.forEach(x => arrs[x.p].push(x.v));
+    function reload_game() {
 
-        return  arrs;
+        $.ajax({
+            url: '/ajax/game',
+            type: 'POST',
+            data: {usrid: usrid, session_id: session_id,},
+            cache: false,
+            success: function (result) {
+                in_game = true;
+                var returnedData = JSON.parse(result);
+                process_game_state(returnedData);
+
+            }
+        });
+
+    }
+
+    function remove_from_array_by_value(arr, val) {
+        for( var i = 0; i < arr.length; i++){
+            if ( arr[i] === val) {
+                arr.splice(i, 1);
+            }
+        }
+        return arr;
+    }
+    function process_checkbox(id, type) {
+
+        switch (type) {
+            case 'party':
+                if(selected_party.includes(id)) {
+                    selected_party = remove_from_array_by_value(selected_party, id);
+                } else {
+                    selected_party.push(id);
+                }
+                break;
+            case 'enemy':
+                if(selected_enemy.includes(id)) {
+                    selected_enemy = remove_from_array_by_value(selected_enemy, id);
+                } else {
+                    selected_enemy.push(id);
+                }
+                break;
+
+        }
 
     }
 
@@ -216,6 +280,13 @@
         $('#curr_round').text('Раунд:' + data.curr_player.round);
         $('#curr_level').text('Уровень:' + data.curr_player.curr_level);
 
+        if(data.can_level_end) {
+            $('#next_level_btn').show();
+        } else {
+            $('#next_level_btn').hide();
+        }
+
+        $('#player-table').empty();
         $.each(data.players, function(key, element) {
             $('#player-table').append(
                 '<tr><td id=\'player'+ element.id + '\'>'
@@ -227,26 +298,51 @@
                 + ')</td></tr>');
         });
         $('#player'+ data.curr_player.player_id ).css("background-color", "#cceecc");
+        if(data.curr_player.player_id == usrid) {
+            is_activeplayer = true;
+        } else {
+            is_activeplayer = false;
+
+        }
+
 
         $('#player_party').empty();
         $.each(data.curr_party, function(key, element) {
             if(element.is_alive) {
-                $('#player_party').append('<div><input type="checkbox" name="party[]" value="' + element.id + '">' + element.name + '</div>');
+                $('#player_party').append('<div><input type="checkbox" class="activeplayer-only" id="party-checkbox'+element.id +'" name="party[]" value="' + element.id + '" onclick="process_checkbox('+element.id+',\'party\');">' + element.name + '</div>');
             }else{
-                $('#player_party').append('<div style="background: coral;"><input type="checkbox" id="party-checkbox" name="party[]" value="' + element.id + '">' + element.name + '</div>');
-
+                $('#player_party').append('<div style="background: coral;"><input type="checkbox" class="activeplayer-only" id="party-checkbox'+element.id +'" name="party[]" value="' + element.id + '" onclick="process_checkbox(' + element.id + ', \'party\');">' + element.name + '</div>');
             }
+
+            if(selected_party.includes(element.id)) {
+                $('#party-checkbox'+element.id).prop('checked', true);
+            } else {
+                $('#party-checkbox'+element.id).prop('checked', false);
+            }
+
         });
 
         $('#encounter').empty();
         $.each(data.curr_encounter, function(key, element) {
             if(element.is_alive) {
-                $('#encounter').append('<div><input type="checkbox" name="enemies[]" value=\'' + element.id + '\'>' + element.name + '</div>');
+                $('#encounter').append('<div><input type="checkbox" class="activeplayer-only" name="enemies[]" id="enemy-checkbox'+element.id+'" value=\'' + element.id + '\' onclick="process_checkbox('+element.id+',\'enemy\');">' + element.name + '</div>');
             } else {
-                $('#encounter').append('<div style="background: coral;"><input type="checkbox" name="enemies[]" value=\'' + element.id + '\'>' + element.name + '</div>');
+                $('#encounter').append('<div style="background: coral;"><input type="checkbox" class="activeplayer-only" id="enemy-checkbox'+element.id + '" name="enemies[]" value=\'' + element.id + '\' onclick="process_checkbox('+element.id+',\'enemy\');">' + element.name + '</div>');
+            }
 
+            if(selected_enemy.includes(element.id)) {
+                $('#enemy-checkbox'+element.id).prop('checked', true);
+            } else {
+                $('#enemy-checkbox'+element.id).prop('checked', false);
             }
         });
+
+        if(is_activeplayer) {
+            $('.activeplayer-only').show();
+        } else {
+            $('.activeplayer-only').hide();
+
+        }
 
     }
 
@@ -320,6 +416,7 @@
             $('#lobby_session_name').text(data.sessions[0].name);
             session_id = data.sessions[0].id;
             reload_players();
+            clearInterval(interval);
             interval = setInterval(reload_players, 1000);
         }
 
@@ -360,20 +457,6 @@
 
     });
 
-
-/*
-    var arrq = ["party%5B%5D=9", "party%5B%5D=10", "enemies%5B%5D=1"];
-
-    arrq = arrq
-        .map(x => x.replace('%5B%5D', '').
-        split('=').
-        map(x => x)).
-        map(x => ({k:x[0], v:x[1]}))
-        .reduce((x,y) => {x.keys.push(y.k); return x;}, {keys:[]});
-
-    console.log(arrq);
-
-*/
 
 </script>
 
