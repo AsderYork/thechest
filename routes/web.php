@@ -41,5 +41,6 @@ $router->post('/ajax/game', 'Ajax_interface_controller@game');
 $router->post('/ajax/action', 'Ajax_interface_controller@action');
 $router->post('/ajax/next_level', 'Ajax_interface_controller@next_level');
 $router->post('/ajax/end_turn', 'Ajax_interface_controller@end_turn');
+$router->post('/ajax/discard_loot', 'Ajax_interface_controller@discard_loot');
 
 

@@ -40,3 +40,34 @@ function echo_r($mixed, $label = '', $return = false) {
     else
         return true;
 }
+
+/**
+ * Checks wether any of the elements in array matching the predicate
+ * @param $array Array to be checked
+ * @param $predicate Predicate to check against
+ * @return bool True if any of the elements in array made predicate return true, false otherwise
+ */
+function any($array, $predicate) {
+    foreach ($array as $value) {
+        if($predicate($value)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Returns first element in array, that matched the predicate
+ * @param $array
+ * @param $predicate
+ * @return mixed|null
+ */
+function first($array, $predicate) {
+
+    foreach ($array as $value) {
+        if($predicate($value)) {
+            return $value;
+        }
+    }
+    return null;
+}
