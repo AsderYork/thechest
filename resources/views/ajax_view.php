@@ -50,9 +50,19 @@
     </div>
 
     <form id="game_form">
+
+    <div id="backpack">
+        <h3>Loot</h3>
+        <div id="loot_list">
+
+        </div>
+    </div>
+
+
     <h3>Party</h3>
 
     <h4 hidden id="potion_usage_display">Le potion</h4>
+
     <div id="player_party">
     </div>
     <div hidden id="enemy_panel">
@@ -215,10 +225,10 @@
             url: '/ajax/action',
             type: 'POST',
             data: {
-                action:{enemies:selected_enemy, party:selected_party},
+                action:{enemies:selected_enemy, party:selected_party, loot: $('.loot_input:checked').map(function() {return this.value}).get()},
                 usrid:usrid,
                 session_id:session_id,
-                changes:$('.potion_selector').map(function() {return {id:this.name,val:this.value}}).get()
+                changes:$('.potion_selector').map(function() {return {id:this.name,val:this.value}}).get(),
             },
             cache: false,
             success: function (result) {
@@ -279,6 +289,11 @@
 
     });
 
+    $('.loot_input').change(function() {
+        console.log('oi!');
+        console.log($(this).attr('lootid') + ' ' + $(this).attr('typename'));
+    });
+
     function sortHTMLby(sel, elem, predicate) {
         var $selector = $(sel),
             $element = $selector.children(elem);
@@ -313,6 +328,7 @@
     }
     function process_checkbox(id, type) {
 
+
         switch (type) {
             case 'party':
                 if(selected_party.includes(id)) {
@@ -343,6 +359,8 @@
                     }
                 }
                 break;
+            case 'loot':
+                console.log('OiOi!');
 
         }
 
@@ -396,6 +414,15 @@
 
     }
 
+    function parse_loot(loot) {
+
+        shown_loot = $(".loot_item").map(function() { return { id:$(this).attr('lootid'), name:$(this).attr('typename') }; }).get();
+
+        shown_loot.filter(x => !loot.some(y => y.id == x.id)).forEach(x => $(`[lootid=${x.id}]`).remove());
+        loot.filter(x => !shown_loot.some(y => y.id == x.id)).forEach(x => $('#loot_list').append(`<div class="loot_item" lootid="${x.id}" typename="${x.name}"><label><input type="checkbox" class="activeplayer-only loot_input" onclick="process_checkbox(${x.id},\'loot\');" value="${x.id}">${x.name}<label></div>`));
+
+    }
+
     function process_game_state(data) {
 
         curr_encounter = data.curr_encounter;
@@ -421,6 +448,8 @@
         } else {
             $('#curr_dragons').text('Дракон пробудился!');
         }
+
+        parse_loot(Object.values(data.loot));
 
         battle_time = Object.values(data.curr_encounter).filter(x => x.is_alive && !x.avoidable).length;
         loot_time = Object.values(data.curr_encounter).filter(x => x.is_alive && x.avoidable).length;

@@ -14,40 +14,59 @@ class game_action
     private $session = null;
     private $curr_error = 'OK';
     private $dedicated_ation = null;
+    private $loot_to_grant = 0;
 
     public $required_input = ['action'];
 
-    private function multikill_of_type($type, $thismember, $encounter) {
+    private function multikill_of_type($type, $thismember) {
 
-        foreach ($encounter['enemy'] as $key => $emeny) {
-            if($encounter['enemy'][$key]['is_alive'] == 1 && $encounter['enemy'][$key]['avoidable'] == 0) {
-                $encounter['enemy'][$key]['is_alive'] = 0;
-                $encounter['party'][$thismember['id']]['is_alive'] = 0;
-                if ($emeny['name'] != $type) {
-                    return $encounter;
+        $killcount = 0;
+
+        foreach ($this->input['enemy'] as $key => $emeny) {
+            if($this->input['enemy'][$key]['is_alive'] == 1) {
+                if ($emeny['name'] != $type && $killcount !== 0) {
+                    continue;
                 }
+                $killcount++;
+                $this->input['enemy'][$key]['is_alive'] = 0;
+                $this->input['party'][$thismember['id']]['is_alive'] = 0;
+
+                if($this->input['enemy'][$key]['name'] === 'CHEST') {
+                    $this->loot_to_grant++;
+                }
+
+
             }
         }
-        return $encounter;
     }
-    private function resolve_partymember_battle($partymember, $encounter) {
+    private function resolve_partymember_battle($partymember) {
         switch ($partymember['name']) {
             case 'MAGE':
-                return $this->multikill_of_type('SLIME',$partymember, $encounter);
+                $this->multikill_of_type('SLIME',$partymember);
+                break;
+
             case 'CLERIC':
-                return $this->multikill_of_type('SKELETON', $partymember, $encounter);
+                $this->multikill_of_type('SKELETON', $partymember);
+                break;
+
             case 'WARRIOR':
-                return $this->multikill_of_type('GOBLIN', $partymember, $encounter);
+                $this->multikill_of_type('GOBLIN', $partymember);
+                break;
+
             case 'THEIF':
-                return $this->multikill_of_type('CHEST', $partymember, $encounter);
+                $this->multikill_of_type('CHEST', $partymember);
+                break;
+
             case 'PALADIN':
-                return $this->multikill_of_type($encounter['enemy'][0]['name'], $partymember, $encounter);
+                $this->multikill_of_type($this->input['enemy'][0]['name'], $partymember);
+                break;
+
             case 'SCROLL':
-                if($partymember['id'] == $encounter['party'][0]['id']) {
-                    $encounter['party'][$partymember['id']]['is_alive'] = 0;
-                    $encounter['reroll'] = 1;
+                if($partymember['id'] == $this->input['party'][0]['id']) {
+                    $this->input['party'][$partymember['id']]['is_alive'] = 0;
+                    $this->input['reroll'] = 1;
                 }
-                return $encounter;
+                break;
 
         }
     }
@@ -110,8 +129,12 @@ class game_action
     private function process_changes() {
 
         $pots_count = count(array_filter($this->input['enemy'], function ($x){return $x['is_alive'] && ($x['name'] === 'POTION');}));
+        $elixirs = array_filter($this->input['loot'], function ($x){return !$x['spent'] && ($x['name'] === 'ELIXIR');});
+
+        echo_r($elixirs); exit;
+
         if($pots_count > 0 && $this->session['stage'] === 'looting') {
-            $this->process_potions($pots_count);
+            $this->process_potions($pots_count, $elixirs_count);
         }
 
 
@@ -229,10 +252,11 @@ class game_action
         }
 
         if(!empty($this->input['party']) && any($this->input['party'], function ($x){return $x['name'] == 'SCROLL';})) {
-            if($this->input = $this->resolve_scroll($this->input, $post['session_id'])) {
+            if($this->resolve_scroll($this->input, $post['session_id'])) {
                 return;
             }
         }
+
 
         if($this->session['stage'] === 'dragon') {
             if($this->process_dragon()) {
@@ -240,11 +264,13 @@ class game_action
             }
         }
 
+
         if(!empty($this->input['party']) && !empty($this->input['enemy'])) {
+
+
             foreach ($this->input['party'] as $key => $member) {
                 if($this->input['party'][$key]['is_alive'] == 1) {
-                    $this->input = $this->resolve_partymember_battle($member, $this->input);
-
+                    $this->resolve_partymember_battle($member);
                     if(isset($this->input['reroll'])) {
                         $session_table->reroll_enemies($this->input['enemy']);
                         $session_table->reroll_team($this->input['party']);
@@ -253,6 +279,10 @@ class game_action
 
                 }
             }
+        }
+
+        if($this->loot_to_grant > 0) {
+            $session_table->give_player_loot($this->session['id'], $this->session['curr_player']['player_id'], $this->loot_to_grant);
         }
 
         $session_table->save_party_deaths($this->input['party']);

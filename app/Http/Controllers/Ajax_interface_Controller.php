@@ -286,6 +286,9 @@ class Ajax_interface_controller
 
         $session_table = new gamesession_model();
 
+        $session_table->give_player_loot($post['session_id'], $post['usrid']); exit;
+
+
         if($session_table->is_game_ended($post['session_id'])) {
             return json_encode(['err' => 'GAME_ENDED']);
         }
@@ -388,6 +391,7 @@ class Ajax_interface_controller
             'curr_encounter' => $session_table->get_current_encounter($session_id),
             'can_level_end' => $this->can_level_end($session_table->get_current_encounter($session_id), $session_data),
             'user' => $user_table->get_user_by_id($userid),
+            'loot' => $session_table->get_avaliable_player_loot($userid),
             'game_ended' => 0
         ]);
         //echo 'the game!';

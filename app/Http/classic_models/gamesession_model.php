@@ -554,7 +554,7 @@ class gamesession_model {
     public function end_dungeon($session) {
 
         $data = (array)DB::table('tc_gamesession')
-            ->select('tc_gamesession_players.*', 'tc_gamesession.round', 'tc_rulebooks.max_rounds')
+            ->select('tc_gamesession_players.*', 'tc_gamesession.round', 'tc_rulebooks.max_rounds', 'tc_gamesession.curr_dragons')
             ->leftJoin('tc_rulebooks', 'tc_rulebooks.id', 'tc_gamesession.rulebook')
             ->leftJoin('tc_gamesession_players', [
                 'tc_gamesession_players.session' => 'tc_gamesession.id',
@@ -591,7 +591,7 @@ class gamesession_model {
             }
         }
         $new_exp = $data['exp'];
-        if($all_monseters_dead) {
+        if($all_monseters_dead && $data['curr_dragons'] === 0) {
             $new_exp = $new_exp + $data['curr_level'];
         }
 
@@ -654,5 +654,102 @@ class gamesession_model {
             ->value('finished');
 
     }
+
+    public function get_avaliable_player_loot($player_id) {
+
+        return DB::table('tc_player_loot')
+            ->leftJoin('tc_loot_types', 'tc_loot_types.id', 'tc_player_loot.type')
+            ->where('tc_player_loot.player', $player_id)
+            ->where('tc_player_loot.spent', 0)
+            ->orderBy('tc_player_loot.type')
+            ->get();
+
+    }
+
+    public function give_player_loot($session_id, $player, $ammount_to_give) {
+
+        $given = 0;
+
+        $distribution = DB::table('tc_gamesession')
+            ->select('tc_loot_limits.*')
+            ->leftJoin('tc_rulebooks', 'tc_rulebooks.id', 'tc_gamesession.rulebook')
+            ->leftJoin('tc_loot_limits', 'tc_loot_limits.limit_group', 'tc_rulebooks.loot_group')
+            ->where('tc_gamesession.id', $session_id)
+            ->whereNotNull('tc_loot_limits.id')
+            ->pluck('tc_loot_limits.ammount', 'tc_loot_limits.type')->toArray();
+
+
+        $simulate_loot_pile = DB::table('tc_gamesession')
+            ->leftJoin('tc_rulebooks', 'tc_rulebooks.id', 'tc_gamesession.rulebook')
+            ->value('simulate_lootpile');
+
+
+        if(empty($distribution)) {
+            $distribution = DB::table('tc_loot_types')
+                ->select(['id as type', DB::raw('1 as ammount')])
+                ->pluck('ammount', 'type')->toArray();
+
+        } else if($simulate_loot_pile) {
+
+            $used = DB::table('tc_player_loot')
+                ->select(['type', DB::raw('count(*) as ammount')])
+                ->groupBy('type')
+                ->where('session', $session_id)
+                ->where('spent', 0)
+                ->pluck('ammount', 'type')->toArray();
+
+            foreach ($used as $type => $ammount) {
+                $distribution[$type] = $distribution[$type] - $ammount;
+            }
+
+        }
+
+        $select_array = [];
+
+        foreach ($distribution as $type => $ammount) {
+            for($i = 0; $i < $ammount; $i++) {
+                $select_array[] = $type;
+            }
+        }
+
+        if(!empty($select_array)) {
+
+            if($ammount_to_give > count($select_array)) {
+                $ammount_to_give = count($select_array);
+            }
+
+            $random_loot = array_rand($select_array, $ammount_to_give);
+            if(!is_array($random_loot)) {
+                $random_loot = [$random_loot];
+            }
+
+            $inserts = [];
+            foreach ($random_loot as $val) {
+                $inserts = [
+                        'player' => $player,
+                        'session' => $session_id,
+                        'type' => $select_array[$val],
+                        'spent' => 0
+                        ];
+            }
+            $given = count($inserts);
+
+            DB::table('tc_player_loot')
+                ->insert($inserts);
+        }
+
+        $delta = $ammount_to_give - $given;
+
+        if($delta > 0) {
+            DB::table('tc_gamesession_players')
+                ->where('tc_gamesession_players.player_id', $player)
+                ->where('tc_gamesession_players.session', $session_id)
+                ->increment('exp', $delta);
+        }
+
+        return $given;
+
+    }
+
 
 }
