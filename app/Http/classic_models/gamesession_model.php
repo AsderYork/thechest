@@ -438,10 +438,23 @@ class gamesession_model {
     }
     public function reroll_enemies($session, $ids) {
 
-        $curr_enemies_count = DB::table('tc_encounter')
-            ->where('session', $session)
-            ->whereIn('id', $ids)
+        $curr_enemies_count = DB::table('tc_gamesession')
+            ->select('tc_enemies_types.*', 'tc_encounter.*')
+            ->leftJoin('tc_gamesession_players', [
+                'tc_gamesession_players.session' => 'tc_gamesession.id',
+                'tc_gamesession.curr_player' => 'tc_gamesession_players.position'
+            ])
+            ->leftJoin('tc_encounter', [
+                'tc_encounter.session' => 'tc_gamesession.id',
+                'tc_encounter.round' => 'tc_gamesession.round',
+                'tc_encounter.level' => 'tc_gamesession_players.curr_level',
+                'tc_encounter.gamesessionplayer' => 'tc_gamesession_players.player_id',
+
+            ])
+            ->leftJoin('tc_enemies_types', 'tc_enemies_types.id', 'tc_encounter.enemy_id')
+            ->where('tc_gamesession.id', $session)
             ->count();
+
         if($curr_enemies_count != count($ids)) {
             return json_encode(['err' => 'WRONG_SESSION']);
         }
@@ -498,6 +511,15 @@ class gamesession_model {
 
         }
     }
+    public function save_spent_loot($loot) {
+
+        foreach ($loot as $item) {
+            DB::table('tc_player_loot')
+                ->where('id', $item['id'])
+                ->update(['spent' => $item['spent']]);
+
+        }
+    }
 
     public function save_party_change_resurrection($party) {
 
@@ -551,7 +573,7 @@ class gamesession_model {
 
 
     }
-    public function end_dungeon($session) {
+    public function end_dungeon($session, $ignore_enemies = false) {
 
         $data = (array)DB::table('tc_gamesession')
             ->select('tc_gamesession_players.*', 'tc_gamesession.round', 'tc_rulebooks.max_rounds', 'tc_gamesession.curr_dragons')
@@ -591,7 +613,7 @@ class gamesession_model {
             }
         }
         $new_exp = $data['exp'];
-        if($all_monseters_dead && $data['curr_dragons'] === 0) {
+        if(($all_monseters_dead && $data['curr_dragons'] === 0) || $ignore_enemies) {
             $new_exp = $new_exp + $data['curr_level'];
         }
 
@@ -631,19 +653,25 @@ class gamesession_model {
 
     }
 
-    public function beat_dragon($session) {
+    public function beat_dragon($session, $player_id, $grant_win) {
         DB::table('tc_gamesession')
             ->where('tc_gamesession.id', $session)
             ->update(['tc_gamesession.curr_dragons' => 0]);
 
-        DB::table('tc_gamesession')
-            ->select('team_size', 'tc_gamesession_players.player_id', 'round')
-            ->leftJoin('tc_gamesession_players', [
-                'tc_gamesession_players.session' => 'tc_gamesession.id',
-                'tc_gamesession.curr_player' => 'tc_gamesession_players.position'
-            ])
-            ->where('tc_gamesession.id',$session)
-            ->increment('tc_gamesession_players.exp');
+        if($grant_win) {
+
+            DB::table('tc_gamesession')
+                ->select('team_size', 'tc_gamesession_players.player_id', 'round')
+                ->leftJoin('tc_gamesession_players', [
+                    'tc_gamesession_players.session' => 'tc_gamesession.id',
+                    'tc_gamesession.curr_player' => 'tc_gamesession_players.position'
+                ])
+                ->where('tc_gamesession.id', $session)
+                ->increment('tc_gamesession_players.exp');
+
+            $this->give_player_loot($session, $player_id, 1);
+
+        }
 
     }
 
@@ -657,12 +685,34 @@ class gamesession_model {
 
     public function get_avaliable_player_loot($player_id) {
 
-        return DB::table('tc_player_loot')
+        $result =  DB::table('tc_player_loot')
+            ->select('tc_player_loot.*', 'tc_loot_types.name', 'tc_partymembers_types.name as as_partymember')
             ->leftJoin('tc_loot_types', 'tc_loot_types.id', 'tc_player_loot.type')
+            ->leftJoin('tc_partymembers_types', 'tc_partymembers_types.id', 'tc_loot_types.use_as_partymember')
             ->where('tc_player_loot.player', $player_id)
             ->where('tc_player_loot.spent', 0)
             ->orderBy('tc_player_loot.type')
             ->get();
+
+        return $this->rekey($result);
+
+    }
+
+    public function turn_encounter_to_dragon($session_id) {
+
+        DB::table('tc_encounter')
+            ->leftJoin('tc_gamesession', 'tc_gamesession.id', $session_id)
+            ->leftJoin('tc_gamesession_players', [
+                'tc_gamesession_players.session' => 'tc_gamesession.id',
+                'tc_gamesession_players.position' => 'tc_gamesession.curr_player'
+            ])
+            ->where('tc_encounter.session', $session_id)
+            ->where('tc_encounter.round', 'tc_gamesession.round')
+            ->where('tc_encounter.level', 'tc_gamesession_players.curr_level')
+            ->update(['tc_encounter.enemy_id' => 6]);
+
+        $this->check_for_dragons($session_id, $this->get_enemy_session_data($session_id));
+
 
     }
 

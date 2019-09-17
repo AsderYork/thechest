@@ -286,8 +286,6 @@ class Ajax_interface_controller
 
         $session_table = new gamesession_model();
 
-        $session_table->give_player_loot($post['session_id'], $post['usrid']); exit;
-
 
         if($session_table->is_game_ended($post['session_id'])) {
             return json_encode(['err' => 'GAME_ENDED']);
